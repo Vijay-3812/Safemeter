@@ -128,8 +128,8 @@ app, dashboard → Week 4 enclosure, cost sheet, volunteer pilot, demo video.
 See [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Team
-
-*[Name 1, Name 2, Name 3, Name 4]* — *[College name]* — *[Email]*
+*Team ZODIAC*
+*Vijay Shree Karthik V, Sachin N, Nithyasri S, Preethica S, Sarvesh* — *Sri Sairam Engineering College* — *vijayshreekarthik5@gmail.com*
 
 ## License
 
