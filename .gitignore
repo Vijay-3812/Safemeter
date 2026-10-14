@@ -1,0 +1,48 @@
+# --- secrets (never commit) ---
+firmware/include/secrets.h
+backend/functions/serviceAccountKey.json
+backend/.env*
+volunteer-app/lib/firebase_options.dart
+volunteer-app/android/app/google-services.json
+volunteer-app/ios/Runner/GoogleService-Info.plist
+
+# --- firmware / PlatformIO ---
+firmware/.pio/
+firmware/.vscode/
+*.bin
+*.elf
+
+# --- node ---
+node_modules/
+npm-debug.log*
+backend/.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# --- flutter ---
+volunteer-app/.dart_tool/
+volunteer-app/build/
+volunteer-app/.flutter-plugins*
+volunteer-app/android/
+volunteer-app/ios/
+volunteer-app/linux/
+volunteer-app/macos/
+volunteer-app/web/
+volunteer-app/windows/
+volunteer-app/.metadata
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+
+# --- data ---
+data/synthetic/
+data/**/features.csv
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
