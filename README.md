@@ -129,6 +129,7 @@ See [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Team
 *Team ZODIAC*
+
 *Vijay Shree Karthik V, Sachin N, Nithyasri S, Preethica S, Sarvesh* — *Sri Sairam Engineering College* — *vijayshreekarthik5@gmail.com*
 
 ## License
