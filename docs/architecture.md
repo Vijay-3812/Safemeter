@@ -34,7 +34,7 @@ flowchart TB
 
 **Design principle — SMS first.** The life-critical path (device → SMS → family/emergency
 numbers) needs only 2G voice/SMS coverage and no app, phone or internet. Everything in the cloud
-is an *addition* (volunteer layer, analytics); if it is down, riders are still protected.
+is an *addition* (volunteer layer, analytics); if it is down, the device can still attempt SMS, subject to device power and cellular coverage. This does not guarantee delivery or rescue.
 
 ## Detection state machine
 
