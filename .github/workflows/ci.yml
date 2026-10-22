@@ -2,8 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "arena/**"]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   firmware-tests:
@@ -64,3 +68,12 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - run: python tools/analysis/simulate_events.py --out /tmp/synth --per-class 10
       - run: python tools/analysis/evaluate.py /tmp/synth
+
+  documentation:
+    name: Docs · local links and SVG accessibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python tools/check_docs.py

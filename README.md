@@ -1,329 +1,193 @@
 <div align="center">
 
-# 🛡️ SafeMeter
+![SafeMeter concept animation: a live-speed dial transitions through sensor checks, a compressed cancellation countdown and an SMS-queued state.](docs/assets/safemeter-animated.gif)
 
-### A vehicle-powered smart speedometer that detects crashes and summons help in the golden hour.
+<sub>Illustrative prototype flow · Timing compressed · Not live telemetry · [View the still version](docs/assets/safemeter-static.png)</sub>
+
+**A vehicle-powered smart speedometer that detects possible crashes and sends a signal for help.**
 
 [![CI](https://github.com/Vijay-3812/Safemeter/actions/workflows/ci.yml/badge.svg)](https://github.com/Vijay-3812/Safemeter/actions/workflows/ci.yml)
-![Platform](https://img.shields.io/badge/hardware-ESP32-blue)
-![Firmware](https://img.shields.io/badge/firmware-PlatformIO-orange)
-![Backend](https://img.shields.io/badge/backend-Firebase-yellow)
-![App](https://img.shields.io/badge/app-Flutter-02569B)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/native%20tests-11-brightgreen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-64edc9?style=flat-square&labelColor=102633)](LICENSE)
+[![Stage: prototype](https://img.shields.io/badge/Stage-Hackathon_prototype-64edc9?style=flat-square&labelColor=102633)](docs/project-status.md)
+[![Platform: ESP32](https://img.shields.io/badge/Platform-ESP32-64edc9?style=flat-square&labelColor=102633)](firmware/)
 
-**No smartphone · No app · No internet · No rider action required.**
+[**The idea**](#the-idea) · [**Try it**](#try-it-in-60-seconds) · [**Under the hood**](#under-the-hood) · [**Evidence**](docs/project-status.md) · [**Judge’s guide**](docs/judges-guide.md) · [**Docs**](docs/README.md)
 
-[**Why**](#-why) ·
-[**How it works**](#-how-it-works) ·
-[**Quick start**](#-quick-start) ·
-[**Hardware**](#-hardware) ·
-[**Real vs simulated**](#-whats-real-and-whats-simulated) ·
-[**Roadmap**](#-roadmap) ·
-[**Contribute**](#-contribute)
+<sub>SEVA submission · Surakshit Bharat · Track A: Product or Technology</sub>
 
 </div>
 
-> 🏆 **SEVA submission** · Theme: *Surakshit Bharat* · Track A: Product or Technology
+> **New here?** Start with the [one-page judge’s guide](docs/judges-guide.md), open the dashboard demo, then inspect the [detector tests](firmware/test/test_native/test_crash_detector.cpp). The concept and detailed prototype PDFs are preserved in [`docs/`](docs/).
 
----
+## The idea
 
-## ⚡ At a glance
+### A speedometer for every ride. A voice when it matters.
 
-SafeMeter is a low-cost retrofit unit for two-wheelers, autos, cabs and trucks. It sits beside the
-existing speedometer, shows live speed, and continuously watches for crashes using
-**wheel speed + impact force + orientation**. Not an accelerometer alone, so potholes don't trigger it.
+After a crash, the rider may be unable to make a call. A bystander may not be there. Even when someone can help, describing the location can cost time.
 
-When a crash is confirmed, the rider gets a **15-second cancel window**. If nobody cancels, an
-**SMS with location, speed at impact and a map link** goes to family, nearby trained volunteers and
-emergency services (108).
+**SafeMeter is designed to close the gap between an accident and someone knowing about it.** It sits beside the existing speedometer, draws power from the vehicle, and combines wheel speed, impact and orientation to identify a possible crash. After a **15-second cancel window**, it queues an SMS with a map link and incident details to preset contacts.
+
+**The rider-side SMS path needs no smartphone or mobile data.** It still requires vehicle power, a working SIM and cellular SMS coverage. Connected volunteer dispatch is a separate, internet-dependent layer—not magic offline cloud connectivity.
 
 <table>
 <tr>
-<td align="center"><h3>📟</h3><b>Live speed</b><br/><sub>Beside the existing speedometer</sub></td>
-<td align="center"><h3>🧠</h3><b>3-stage detector</b><br/><sub>Speed · impact · orientation</sub></td>
-<td align="center"><h3>📩</h3><b>SMS over 2G</b><br/><sub>Works with no internet</sub></td>
-<td align="center"><h3>🚑</h3><b>Volunteer dispatch</b><br/><sub>First to accept responds</sub></td>
+<td width="33%" valign="top"><h3>01 / Sense with context</h3>Not just an impact spike. Check whether wheel speed collapsed and the vehicle remained tilted.</td>
+<td width="33%" valign="top"><h3>02 / Keep the rider in control</h3>A visible, audible countdown gives the rider a chance to cancel before an alert is sent.</td>
+<td width="33%" valign="top"><h3>03 / Connect to people</h3>SMS to preset contacts; optional cloud dispatch to nearby volunteers and response-time tracking.</td>
 </tr>
 </table>
 
----
+## Try it in 60 seconds
 
-## 🎯 Why
-
-India recorded **1,77,175 road deaths in 2024**; two-wheeler riders were **46.2 %** of them
-(MoRTH, *Road Accidents in India 2024*).
-
-Survival depends on the golden hour. On highways, at night and in rural areas:
-
-- 🌙 nobody may be there to call
-- 😵 the victim may be unconscious
-- 📍 the location is hard to communicate
-
-Phone apps and smart helmets fail exactly then, because they need a charged, worn, connected device.
-**SafeMeter is powered by the vehicle and always on.**
-
----
-
-## 🔬 How it works
-
-### The crash timeline
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant S as 📡 Sensors
-    participant D as 🧠 Detector
-    participant R as 👤 Rider
-    participant M as 📩 SIM800L
-    participant V as 🚑 Volunteers / 108
-    S->>D: Speed, impact, tilt (continuous)
-    D->>D: Stage 1 · Trigger ≥ 4 g while moving
-    D->>D: Stage 2 · Speed falls ≥ 60 % in 1 s
-    D->>D: Stage 3 · Tilt ≥ 60° for 2 s
-    D->>R: 🔔 15 s countdown (buzzer + OLED)
-    alt Rider presses cancel
-        R-->>D: ✋ Cancelled, nothing sent
-    else Timeout
-        D->>M: Crash confirmed
-        M->>V: 📍 Location + speed at impact + map link
-    end
-```
-
-### The three-stage detector
-
-| Stage | Check | Rejects |
-|:-----:|-------|---------|
-| **1 · Trigger** | \|a\| ≥ 4 g while moving ≥ 20 km/h | parked knocks |
-| **2 · Speed** | speed falls ≥ 60 % within 1 s | 🕳️ **potholes, speed breakers** (wheel keeps turning) |
-| **3 · Orientation** | tilt ≥ 60° for 2 s (2W) / stationary 3 s (4W) | glancing hits, hard braking |
-
-> All three must pass before the countdown starts.
-
-<details>
-<summary><b>🧪 Want to verify the detector yourself? (no hardware needed)</b></summary>
-
-<br/>
-
-The detector is a pure C++ state machine with
-[11 native unit tests](firmware/test/test_native/test_crash_detector.cpp). Run them on your laptop:
+**No hardware. No Firebase account. No build step.** With Python 3 installed, run from the repository root:
 
 ```bash
-cd firmware && pio test -e native
+python3 -m http.server 8000 --bind 0.0.0.0 --directory dashboard
 ```
 
-Scenarios covered:
+Open **http://localhost:8000**. The unconfigured dashboard generates **synthetic incidents around Chennai**. Explore the incident list, select a status filter, click a row to focus the map, and toggle the heatmap.
 
-- ✅ Normal riding never triggers
-- ✅ Pothole is rejected by the speed check
-- ✅ Speed breaker is rejected
-- ✅ Hard braking never triggers
-- ✅ Low-speed knock is ignored
-- ✅ Two-wheeler full crash sequence
-- ✅ Cancel button stops the alert
-- ✅ Crash but stays upright is rejected
-- ✅ Tilt must be continuous
-- ✅ Four-wheeler uses the stationary check
-- ✅ Reset clears everything
+> This is a **UI demonstration**, not a live emergency feed or proof of device-to-cloud delivery. The dashboard loads Leaflet, Firebase libraries and map tiles from the internet. For the hosted Arena preview, use its preview URL rather than localhost.
+
+**Want to test the actual decision logic?** See [native detector tests](#run-the-detector-tests). Want the full bench presentation? Use the [demo runbook](docs/demo-script.md).
+
+## Under the hood
+
+![SafeMeter system: sense, decide, cancel, alert, with an optional connected response layer.](docs/assets/system-flow.svg)
+
+### Three checks. Then a chance to cancel.
+
+| Gate | Prototype rule | Why it exists |
+|:--|:--|:--|
+| **01 · Impact** | ≥ 4 g while moving ≥ 20 km/h | Ignore low-speed knocks in the configured scenarios |
+| **02 · Speed collapse** | ≥ 60% speed drop over a 1-second check window | Reject a jolt when the wheel keeps turning |
+| **03 · Post-impact state** | Two-wheeler: ≥ 60° tilt held for 2 seconds | Seek persistent evidence beyond the impact |
+| **04 · Rider decision** | 15 seconds to cancel | Give conscious riders a way to stop an unwanted alert |
+
+The four-wheeler profile uses a stationary check instead of tilt. These are **tunable bench-prototype thresholds**, not validated safety limits. Upright crashes, low-speed incidents and unusual wheel behaviour can be missed. See [detection design and gaps](docs/crash-detection.md).
+
+<details>
+<summary><strong>What does the alert look like?</strong></summary>
+
+Illustrative message, not a delivery receipt:
+
+```text
+SAFEMETER CRASH ALERT
+SM-001 2026-10-14 08:30:15Z
+Speed 48km/h Impact 6.2g
+https://maps.google.com/?q=12.934512,80.207812
+Call 108 if unreachable
+```
+
+SMS goes to configured recipients. **“Call 108” is guidance in the message, not an implemented integration with emergency services.** Use only consenting team-owned numbers in demonstrations.
 
 </details>
 
----
+[Architecture & sequences →](docs/architecture.md) · [Detector implementation →](firmware/lib/CrashDetector/) · [Backend schema →](backend/schema.md)
 
-## 🗂️ Explore the repository
+## Built to be inspected
 
-Click a row to jump into that part of the project.
+A strong prototype makes its boundaries visible. Source code is not a field trial, and synthetic data is not a safety result.
 
-| | Module | What's inside | Status |
-|:-:|--------|---------------|:------:|
-| 🔩 | [`firmware/`](firmware/) | ESP32 firmware (PlatformIO): speed sensor ISR, MPU6050 driver with vector complementary filter, GPS, non-blocking SIM800L SMS queue with store-and-forward, OLED UI, crash detector | ✅ compiles, detector unit-tested |
-| ☁️ | [`backend/`](backend/) | Firebase Cloud Functions: device ingest, geo-matched volunteer dispatch via FCM, first-accept-wins transaction, response-time metrics; Firestore rules + indexes | ✅ written, needs a Firebase project |
-| 📱 | [`volunteer-app/`](volunteer-app/) | Flutter responder app: register, availability, push → incident → navigate / call 108 / accept / arrived | ✍️ written, not yet built on device |
-| 📊 | [`dashboard/`](dashboard/) | Static web dashboard: live incident table, Leaflet map, black-spot heatmap, response-time stats; demo mode without backend | ✅ works standalone |
-| 🛠️ | [`tools/`](tools/) | Serial data logger, synthetic trace generator, threshold-vs-decision-tree evaluator | ✅ pipeline verified |
-| 🔌 | [`hardware/`](hardware/) | Bill of materials with prices, wiring + power guide, bench test rig | 📄 documented |
-| 📚 | [`docs/`](docs/) | Concept document, prototype description (markdown + original PDFs), architecture, detection notes, test plan, demo script, volunteer training, roadmap | 📄 documented |
+| Component | In this repository | What still needs evidence |
+|:--|:--|:--|
+| **Device firmware** | ESP32 sensors, detector, OLED, cancel flow, SMS queue | Physical assembly, calibration, measured SMS delivery and resilience |
+| **Detection core** | Hardware-independent C++; 11 synthetic replay unit tests | Labelled bench trials and eventual professionally supervised field validation |
+| **Response backend** | Firebase ingest, geo-dispatch, first-accept transaction | Deployment, access-control review, end-to-end integration tests |
+| **Volunteer app** | Flutter screens, notifications and responder flow | Generated platform configuration, device builds and pilot drills |
+| **Operations dashboard** | Demo data, incident map, status filtering and heatmap | Authenticated live deployment and privacy controls |
+| **Analysis tools** | Serial logger, synthetic traces, threshold/classifier evaluation | Real measurements; no claimed detection accuracy yet |
 
----
+**Not claimed:** certified crash detection, guaranteed rescue, confirmed 108 integration, production-ready security, or measured lives saved. The [evidence register](docs/project-status.md) explains what would substantiate each claim.
 
-## 🚀 Quick start
+## Build your path
 
-Pick the part you want to run:
+### Run the detector tests
 
-<details open>
-<summary><b>🔩 Firmware (ESP32)</b></summary>
-
-<br/>
+Requires Python 3, PlatformIO and a native C++ toolchain. The first run downloads PlatformIO dependencies.
 
 ```bash
-pip install platformio
+python3 -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+python -m pip install platformio
 cd firmware
-cp include/secrets.example.h include/secrets.h   # add your emergency numbers
-pio test -e native                                # run the crash-detector tests on your PC
-pio run -e esp32dev -t upload                     # flash the board
-pio device monitor                                # 115200 baud
+pio test -e native
 ```
 
-**Serial monitor keys:** `L` log · `T` simulate impact · `C` cancel · `S` status
+The suite covers ordinary riding, potholes, speed breakers, hard braking, low-speed knocks, crash progression, cancellation, upright rejection, continuous tilt, the four-wheeler profile and reset.
 
-Wiring is in [`hardware/wiring.md`](hardware/wiring.md). The two things that break most builds
-(SIM800L power and level shifting) are explained there.
+### Assemble the hardware
 
-</details>
+**Indicative prototype BOM: ₹1,900–2,900**, not a supplier quote; recurring SIM costs and demo-rig extras are listed separately in the [cost sheet](hardware/bom.md).
 
-<details>
-<summary><b>☁️ Backend + 📊 Dashboard</b></summary>
+| Compute | Motion & speed | Location & comms | Rider interface |
+|:--|:--|:--|:--|
+| ESP32 DevKit | MPU6050 + hall sensor/magnet | NEO-6M GPS + SIM800L | OLED + buzzer + cancel button |
 
-<br/>
+Start with the [wiring guide](hardware/wiring.md) and [safe test rig](hardware/test-rig.md). **Give the SIM800L its own ~4 V supply** with burst-current headroom; never power it from the ESP32’s 3.3 V pin.
 
 ```bash
-cd backend && npm --prefix functions install
-firebase deploy --only functions,firestore:rules,firestore:indexes   # after setting .firebaserc
-cd ../dashboard && python3 -m http.server 8000                       # demo mode until you paste a Firebase config
+# From firmware/ with the virtual environment active
+cp include/secrets.example.h include/secrets.h
+# Edit secrets.h locally: use consenting test recipients only.
+pio run -e esp32dev
+pio run -e esp32dev -t upload
+pio device monitor
 ```
 
-Open `http://localhost:8000` to see the dashboard. Without a Firebase config it runs in **demo mode**.
+<details>
+<summary><strong>Continue into the connected stack</strong></summary>
+
+- **[Backend setup](backend/README.md):** configure your Firebase project, install function dependencies, review rules and device keys, then deploy. Cloud resources may incur charges.
+- **[Volunteer app setup](volunteer-app/README.md):** Flutter SDK, generated Android/iOS platform projects and Firebase configuration are required. This is not a prebuilt app download.
+- **[Dashboard setup](dashboard/README.md):** starts in demo mode; Firebase configuration changes it to the connected path. Review authentication before deployment.
+- **[Analysis workflow](tools/README.md):** label recordings and compare threshold logic with a small decision tree. Keep synthetic and measured datasets separate.
 
 </details>
 
-<details>
-<summary><b>📱 Volunteer app (Flutter)</b></summary>
+## The repository, at a glance
 
-<br/>
-
-```bash
-cd volunteer-app && flutter create . --platforms=android,ios && flutterfire configure && flutter run
+```text
+SafeMeter
+├── firmware/        ESP32 firmware + portable C++ detector + replay tests
+├── hardware/        Wiring, cost model, enclosure notes and safe bench rig
+├── backend/         Firebase functions, Firestore rules and incident schema
+├── volunteer-app/   Flutter responder experience
+├── dashboard/       Incident operations UI with synthetic demo mode
+├── tools/           Serial capture, trace generation and analysis
+├── data/            Dataset conventions, not claimed field results
+└── docs/            Architecture, original PDFs, evidence and demo guides
 ```
 
-</details>
+## From prototype to deployment
 
-<details>
-<summary><b>📈 Collect data and tune thresholds</b></summary>
+**Now →** Demonstrate the decision logic and cancellation safely.
 
-<br/>
+**Next →** Record labelled bench trials, measure SMS latency, build the app and run consented responder drills.
 
-```bash
-pip install -r tools/requirements.txt
-python tools/data_logger/log_serial.py --port /dev/ttyUSB0 --label pothole --trial 1
-python tools/analysis/evaluate.py data/raw        # confusion matrix: thresholds vs decision tree
-```
+**Then →** Upgrade to high-g sensing and 4G, automotive power protection, secure provisioning and privacy-reviewed deployments.
 
-</details>
+The [roadmap](docs/roadmap.md) is a plan, not a list of completed milestones. SIM800L depends on 2G availability; MPU6050 saturates at ±16 g; vehicle power loss, stale GPS and network outages remain important failure modes.
 
----
+## Help build the next mile
 
-## 🔌 Hardware
+Hardware builders, embedded developers, Flutter contributors, data analysts and documentation writers are welcome.
 
-**Prototype cost: ≈ ₹ 2,000–2,900**
+- Read the [contribution guide](CONTRIBUTING.md) for setup and review expectations.
+- Choose a starter task: multilingual alert copy, accessible dashboard controls, enclosure CAD, or reproducible bench-test reporting.
+- Report reproducible problems using the [issue templates](https://github.com/Vijay-3812/Safemeter/issues/new/choose).
+- For vulnerabilities, follow the [security policy](SECURITY.md). For community expectations, see the [code of conduct](CODE_OF_CONDUCT.md).
 
-<details>
-<summary><b>🧾 Show the parts list</b></summary>
-
-<br/>
-
-| Part | Role |
-|------|------|
-| ESP32 DevKit | Main controller |
-| MPU6050 | Accelerometer + gyro (impact and tilt) |
-| A3144 hall sensor + magnet | Wheel speed |
-| NEO-6M GPS | Location and speed |
-| SIM800L | SMS over 2G |
-| 0.96" OLED | Live speed and countdown |
-| Buzzer + button | Alert and cancel |
-| LM2596 bucks ×2 (5 V and 4 V) | Power conversion from the vehicle |
-| 1000 µF capacitor | Power smoothing |
-| Enclosure | Housing (see `hardware/enclosure/`) |
-
-Full BOM with a projected **₹ 1,500 cost at 1,000 units** and the production upgrade path
-(ADXL375 high-g sensor, 4G module): **[`hardware/bom.md`](hardware/bom.md)**.
-
-</details>
+> **Safety first.** Bench rigs and padded controlled tests only. Never stage a crash with a rider, send test alerts to emergency-service numbers, or publish personal locations and phone numbers. SafeMeter is a research prototype—not a replacement for emergency services or a certified safety system.
 
 ---
-
-## 🧭 What's real and what's simulated
-
-We'd rather be honest than impressive.
-
-| ✅ Real and working | 🧪 Simulated / scaled down |
-|---------------------|----------------------------|
-| Sensor reading, speed calculation, tilt estimate | Crash forces (bench impacts ≪ real crashes) |
-| Three-stage detection logic | Mounting on a moving vehicle |
-| Countdown, cancel, SMS delivery | Large-scale volunteer coverage (pilot of 10–15) |
-| App notification, dashboard logging | High-g sensing (production upgrade) |
-
-<details>
-<summary><b>⚠️ Known limitations</b></summary>
-
-<br/>
-
-- SIM800L is 2G (production → 4G).
-- MPU6050 saturates at ±16 g.
-- The unit can't tell if the rider is injured. That's why there is a cancel window and speed-at-impact in the SMS.
-- GPS needs sky view and time to lock.
-
-Details: [`docs/prototype-description.md`](docs/prototype-description.md).
-
-</details>
-
----
-
-## 🗺️ Roadmap
-
-```mermaid
-timeline
-    title SafeMeter build plan
-    Week 1 : Hardware + data logging
-    Week 2 : Detection tuned on 50+ labelled trials
-    Week 3 : SMS, backend, volunteer app, dashboard
-    Week 4 : Enclosure, cost sheet, volunteer pilot, demo video
-```
-
-Full plan: [`docs/roadmap.md`](docs/roadmap.md).
-
----
-
-## 🤝 Contribute
-
-Thanks for helping make roads safer. Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Three rules matter most:
-
-1. 🛑 **Safety first.** Never run tests on a moving vehicle with a person on it. Bench rigs and padded drops only.
-2. 🔐 **No secrets in git.** Phone numbers go in `firmware/include/secrets.h` (ignored).
-3. 📏 **Honest numbers.** Results must come from real recordings in `data/raw/`.
-
-<details>
-<summary><b>🌱 Good first issues</b></summary>
-
-<br/>
-
-- [ ] Enclosure design (STL/STEP) in `hardware/enclosure/`
-- [ ] Four-wheeler profile validation
-- [ ] Multilingual SMS templates
-- [ ] Flutter app: local notification channel setup, phone-number auth
-- [ ] Dashboard: date-range filter, CSV export
-
-</details>
-
----
-
-## 👥 Team
-
-**Team ZODIAC**
-
-*Vijay Shree Karthik V · Sachin N · Nithyasri S · Preethica S · Sarvesh*
-Sri Sairam Engineering College · vijayshreekarthik5@gmail.com
-
----
-
-## 📄 License
-
-[MIT](LICENSE). Hardware and documentation are shared under the same terms.
-
-> ⚕️ Volunteer safety guidance in `docs/volunteer-training.md` is general first-responder advice, not
-> medical instruction. Follow the directions of 108 and emergency services.
 
 <div align="center">
 
-**If SafeMeter could help someone you know, ⭐ star the repo and share it.**
+**Built for the ride. Designed for the moment after.**
+
+[Concept PDF](docs/SafeMeter_Concept_Document.pdf) · [Prototype PDF](docs/SafeMeter_Prototype_Detailed_Description.pdf) · [Documentation hub](docs/README.md) · [MIT license](LICENSE)
+
+<sub>SafeMeter · Vijay Shree Karthik & the SafeMeter team</sub>
 
 </div>
