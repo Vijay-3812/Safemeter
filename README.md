@@ -11,13 +11,23 @@
 [![Stage: prototype](https://img.shields.io/badge/Stage-Hackathon_prototype-64edc9?style=flat-square&labelColor=102633)](docs/project-status.md)
 [![Platform: ESP32](https://img.shields.io/badge/Platform-ESP32-64edc9?style=flat-square&labelColor=102633)](firmware/)
 
-[**The idea**](#the-idea) · [**Try it**](#try-it-in-60-seconds) · [**Under the hood**](#under-the-hood) · [**Evidence**](docs/project-status.md) · [**Judge’s guide**](docs/judges-guide.md) · [**Docs**](docs/README.md)
+[**The idea**](#the-idea) · [**Try it**](#try-it-in-60-seconds) · [**Architecture**](#system-architecture) · [**Crash timeline**](#the-crash-to-contact-timeline) · [**Evidence**](docs/project-status.md) · [**Judge’s guide**](docs/judges-guide.md) · [**Docs**](docs/README.md)
 
 <sub>SEVA submission · Surakshit Bharat · Track A: Product or Technology</sub>
 
 </div>
 
 > **New here?** Start with the [one-page judge’s guide](docs/judges-guide.md), open the dashboard demo, then inspect the [detector tests](firmware/test/test_native/test_crash_detector.cpp). The concept and detailed prototype PDFs are preserved in [`docs/`](docs/).
+
+## Choose your route
+
+| Your next stop | Start here | What you will find |
+|:--|:--|:--|
+| **Evaluate the idea** | [Judge’s guide](docs/judges-guide.md) | The problem, distinction and a three-minute review path |
+| **Explore the system** | [Architecture below](#system-architecture) | Device, SMS, cloud and responder connections |
+| **Run something now** | [Dashboard demo](#try-it-in-60-seconds) | Synthetic incidents, map exploration and status filters |
+| **Inspect the engineering** | [Detector tests](firmware/test/test_native/test_crash_detector.cpp) | Replayable scenarios, cancellation and rejection cases |
+| **Build the prototype** | [Hardware guide](hardware/README.md) | Wiring, power, parts and a safe bench rig |
 
 ## The idea
 
@@ -55,6 +65,83 @@ Open **http://localhost:8000**. The unconfigured dashboard generates **synthetic
 
 ![SafeMeter system: sense, decide, cancel, alert, with an optional connected response layer.](docs/assets/system-flow.svg)
 
+### System architecture
+
+**One device. Two communication paths.** SMS to preset contacts is the primary alert path; internet-connected services add responder coordination and visibility.
+
+```mermaid
+flowchart TB
+    subgraph VEHICLE["ON VEHICLE / ESP32"]
+        HALL["Hall sensor<br/>Wheel speed"] --> DET
+        IMU["MPU6050<br/>Impact + orientation"] --> DET
+        DET["CrashDetector<br/>Three-stage decision logic"] --> UI["OLED + buzzer<br/>15-second cancel window"]
+        UI -->|Rider cancels| STOP["No alert SMS"]
+        UI -->|Countdown expires| ALERT["Alert builder"]
+        GPS["NEO-6M GPS<br/>Last valid location"] --> ALERT
+        ALERT --> GSM["SIM800L<br/>SMS queue"]
+        ALERT -.->|Optional Wi-Fi| POST["HTTPS incident upload"]
+    end
+
+    GSM -->|Cellular SMS| CONTACTS["Preset contacts<br/>Location + speed + time"]
+
+    subgraph CLOUD["CONNECTED LAYER / FIREBASE"]
+        INGEST["ingestIncident"] --> DB[("Firestore")]
+        DB --> DISPATCH["Geo-matched dispatch<br/>FCM push"]
+        ACCEPT["acceptIncident<br/>First-accept transaction"] --> DB
+        ARRIVED["markArrived"] --> DB
+    end
+
+    POST -.->|Internet required| INGEST
+    DISPATCH --> APP["Flutter volunteer app"]
+    APP --> ACCEPT
+    APP --> ARRIVED
+    DB --> DASH["Operations dashboard<br/>Incidents + response times + heatmap"]
+
+    classDef device fill:#102633,stroke:#64edc9,color:#edf7fa
+    classDef connected fill:#17263b,stroke:#8bb9ed,color:#edf7fa
+    classDef human fill:#30291e,stroke:#ffca7b,color:#fff4e2
+    class HALL,IMU,DET,UI,GPS,ALERT,GSM,POST device
+    class INGEST,DB,DISPATCH,ACCEPT,ARRIVED,DASH connected
+    class CONTACTS,APP,STOP human
+```
+
+> **Read the arrows carefully:** the SIM800L does not send Firebase push notifications. The connected flow needs a separately configured internet upload. No emergency-service integration or guaranteed delivery is implied.
+
+### The crash-to-contact timeline
+
+The intended sequence below shows both the **cancel path** and the **alert path**. Connected steps require deployment and configuration; this is an architecture walkthrough, not a recorded successful field test.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Sensors
+    participant D as ESP32 detector
+    participant R as Rider
+    participant M as GSM modem
+    participant C as Preset contact
+    participant B as Firebase
+    participant V as Volunteer app
+
+    S->>D: Wheel speed + impact + orientation
+    D->>D: Check impact, speed collapse and post-impact state
+    D->>R: OLED + buzzer: 15-second cancel window
+    alt Rider cancels
+        R->>D: Press cancel
+        Note over D,M: No alert SMS is queued
+    else Countdown expires
+        D->>M: Queue incident SMS with location link
+        M-->>C: Attempt delivery over cellular SMS
+        opt Configured internet upload and connected services
+            D->>B: Upload incident
+            B->>V: Notify eligible nearby volunteers
+            V->>B: Accept incident
+            B->>B: First-accept assignment transaction
+            V->>B: Mark arrival
+            Note over B,V: Record response-time metrics
+        end
+    end
+```
+
 ### Three checks. Then a chance to cancel.
 
 | Gate | Prototype rule | Why it exists |
@@ -80,6 +167,45 @@ Call 108 if unreachable
 ```
 
 SMS goes to configured recipients. **“Call 108” is guidance in the message, not an implemented integration with emergency services.** Use only consenting team-owned numbers in demonstrations.
+
+</details>
+
+<details>
+<summary><strong>Engineering deep dive / open the detector state machine</strong></summary>
+
+```mermaid
+stateDiagram-v2
+    [*] --> NORMAL
+    NORMAL --> IMPACT_CHECK: Impact above threshold while moving
+    IMPACT_CHECK --> NORMAL: Speed check fails
+    IMPACT_CHECK --> POST_IMPACT_CHECK: Required speed collapse
+    POST_IMPACT_CHECK --> NORMAL: Confirmation times out
+    POST_IMPACT_CHECK --> COUNTDOWN: Persistent tilt or stationary check passes
+    COUNTDOWN --> COOLDOWN: Rider cancels / no alert SMS
+    COUNTDOWN --> COOLDOWN: 15 seconds expire / queue alert SMS
+    COOLDOWN --> NORMAL: Cooldown expires
+```
+
+The two-wheeler profile checks persistent tilt; the four-wheeler profile checks stationary duration. Rejected events return to normal operation. Both cancelled and alerted events enter a cooldown to avoid immediate retriggers.
+
+[Read the portable C++ implementation](firmware/lib/CrashDetector/CrashDetector.cpp) · [Inspect all tunable parameters](docs/crash-detection.md)
+
+</details>
+
+<details>
+<summary><strong>Demo challenge / can the detector tell these scenarios apart?</strong></summary>
+
+| Bench scenario | Expected configured behaviour | Inspect |
+|:--|:--|:--|
+| Jolt while the wheel keeps spinning | Reject at the speed check | Pothole replay |
+| Braking without a qualifying impact | Remain in normal operation | Hard-braking replay |
+| Impact + wheel-speed collapse + sustained tilt | Enter the cancellation countdown | Two-wheeler crash replay |
+| Cancel button during the countdown | Do not emit an alert event | Cancellation replay |
+| Impact and speed collapse, but bike stays upright | Reject after post-impact confirmation times out | Upright-crash rejection replay |
+
+These expectations come from the [synthetic replay suite](firmware/test/test_native/test_crash_detector.cpp), not measured road performance. The last scenario also illustrates a real limitation: an upright crash can be missed.
+
+Use the [safe demo runbook](docs/demo-script.md) for a physical demonstration. Never stage a crash with a rider.
 
 </details>
 
@@ -160,6 +286,17 @@ SafeMeter
 ```
 
 ## From prototype to deployment
+
+```mermaid
+flowchart LR
+    A["01 / DEMONSTRATE<br/>Bench rig + cancellation"] --> B["02 / MEASURE<br/>Labelled trials + SMS latency"]
+    B --> C["03 / CONNECT<br/>App builds + consented drills"]
+    C --> D["04 / HARDEN<br/>4G + high-g sensing + security"]
+    classDef stage fill:#102633,stroke:#64edc9,color:#edf7fa
+    class A,B,C,D stage
+```
+
+*Planned progression, not completed milestones. Each stage needs its own evidence.*
 
 **Now →** Demonstrate the decision logic and cancellation safely.
 
