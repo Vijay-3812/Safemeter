@@ -46,3 +46,9 @@ data/**/features.csv
 Thumbs.db
 .idea/
 *.swp
+
+# Dashboard generated outputs
+dashboard/dist/
+dashboard/*.tsbuildinfo
+dashboard/test-results/
+dashboard/playwright-report/

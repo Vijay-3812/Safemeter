@@ -48,7 +48,7 @@ From the repository root:
 ```bash
 python3 tools/check_docs.py
 node --check backend/functions/index.js
-node --check dashboard/app.js
+cd dashboard && pnpm install --frozen-lockfile && pnpm check
 ```
 
 For firmware, use the PlatformIO commands above. For the Python analysis pipeline, follow [tools/README.md](tools/README.md). Run the dashboard locally and verify its demo label, status filter, map selection and narrow-screen layout for UI changes. Report checks you could not run rather than implying they passed.
