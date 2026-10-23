@@ -56,7 +56,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
       - run: node --check backend/functions/index.js
-      - run: node --check dashboard/app.js
 
   tools:
     name: Tools · analysis pipeline
@@ -77,3 +76,29 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: python tools/check_docs.py
+
+  dashboard:
+    name: Dashboard · types, lint, unit tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: dashboard-browser-results
+          path: dashboard/test-results/

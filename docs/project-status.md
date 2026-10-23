@@ -49,7 +49,11 @@ For every measurement, record the commit, hardware and firmware configuration, t
 The documentation refresh was checked locally with:
 
 - **Native detector suite:** 11 tests passed, zero failures. Compiled the existing test source and `CrashDetector.cpp` with `g++ -std=c++17 -Wall -DNATIVE_TEST`, linking Unity v2.6.1 built with GCC. This direct native run exercises the detector tests; it is **not** a PlatformIO ESP32 build or hardware validation.
-- **JavaScript syntax:** `node --check` passed for `backend/functions/index.js` and `dashboard/app.js`. This is not a runtime integration test.
+- **JavaScript syntax:** `node --check` passed for `backend/functions/index.js` and the former flat dashboard script at that review point. The dashboard has since been replaced; current checks are in `dashboard/IMPLEMENTATION.md`. This is not a runtime integration test.
 - **Documentation:** `python3 tools/check_docs.py` checks local Markdown file targets and SVG title/description metadata. It does not validate remote URLs, heading anchors or browser rendering.
 
 ESP32 cross-compilation, Flutter builds, Firebase deployment and physical SMS delivery were not verified as part of this documentation refresh.
+
+## Dashboard redesign / 23 October 2026
+
+The operations UI is now a Vite/React/TypeScript simulation with a typed API-source stub rather than an automatic Firebase connection. See the [dashboard implementation review](../dashboard/IMPLEMENTATION.md) for current quality measurements and limitations. Browser checks and screenshots do not establish hardware, SMS or live emergency-response integration.

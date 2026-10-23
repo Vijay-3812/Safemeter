@@ -49,15 +49,17 @@ After a crash, the rider may be unable to make a call. A bystander may not be th
 
 ## Try it in 60 seconds
 
-**No hardware. No Firebase account. No build step.** With Python 3 installed, run from the repository root:
+**No hardware or Firebase account required.** With Node.js 22.19+ and pnpm 10.6.2 installed, run from the repository root:
 
 ```bash
-python3 -m http.server 8000 --bind 0.0.0.0 --directory dashboard
+cd dashboard
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-Open **http://localhost:8000**. The unconfigured dashboard generates **synthetic incidents around Chennai**. Explore the incident list, select a status filter, click a row to focus the map, and toggle the heatmap.
+Open **http://localhost:5173**. The operations console generates **seeded synthetic incidents along Chennai road corridors**. Explore the incident list, select a status filter, click a row to focus the map, and toggle the heatmap.
 
-> This is a **UI demonstration**, not a live emergency feed or proof of device-to-cloud delivery. The dashboard loads Leaflet, Firebase libraries and map tiles from the internet. For the hosted Arena preview, use its preview URL rather than localhost.
+> This is a **UI demonstration**, not a live emergency feed or proof of device-to-cloud delivery. Fonts and icons are self-hosted. CARTO basemap tiles need internet; if unavailable, a labelled schematic incident layer remains usable. For the hosted Arena preview, use its preview URL rather than localhost.
 
 **Want to test the actual decision logic?** See [native detector tests](#run-the-detector-tests). Want the full bench presentation? Use the [demo runbook](docs/demo-script.md).
 
@@ -266,7 +268,7 @@ pio device monitor
 
 - **[Backend setup](backend/README.md):** configure your Firebase project, install function dependencies, review rules and device keys, then deploy. Cloud resources may incur charges.
 - **[Volunteer app setup](volunteer-app/README.md):** Flutter SDK, generated Android/iOS platform projects and Firebase configuration are required. This is not a prebuilt app download.
-- **[Dashboard setup](dashboard/README.md):** starts in demo mode; Firebase configuration changes it to the connected path. Review authentication before deployment.
+- **[Dashboard setup](dashboard/README.md):** starts in demo mode; a typed API/WebSocket source stub is provided for a future connected backend. Review authentication before deployment.
 - **[Analysis workflow](tools/README.md):** label recordings and compare threshold logic with a small decision tree. Keep synthetic and measured datasets separate.
 
 </details>
